@@ -1,0 +1,68 @@
+---
+# StorageClass for persistent volumes
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: cosmos-storage
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+
+---
+# PersistentVolume for API data (logs, cache)
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: cosmos-api-pv
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: cosmos-storage
+  hostPath:
+    path: /data/cosmos-api
+
+---
+# PersistentVolumeClaim for API
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cosmos-api-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: cosmos-storage
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+# PersistentVolume for Frontend assets cache
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: cosmos-frontend-pv
+spec:
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteMany
+  storageClassName: cosmos-storage
+  hostPath:
+    path: /data/cosmos-frontend
+
+---
+# PersistentVolumeClaim for Frontend
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cosmos-frontend-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: cosmos-storage
+  resources:
+    requests:
+      storage: 2Gi

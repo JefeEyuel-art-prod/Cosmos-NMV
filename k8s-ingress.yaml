@@ -1,0 +1,28 @@
+---
+# Ingress to expose frontend and API externally
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cosmos-ingress
+  namespace: default
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+spec:
+  rules:
+  - host: cosmos.local  # Replace with your domain
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: cosmos-api
+            port:
+              number: 5000
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: cosmos-frontend
+            port:
+              number: 5173

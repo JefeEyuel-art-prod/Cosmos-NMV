@@ -1,0 +1,92 @@
+---
+# ConfigMap for environment variables
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cosmos-api-config
+  namespace: default
+data:
+  NODE_ENV: "production"
+  PORT: "5000"
+  CRASH_PROBABILITY: "0"
+  FAILURE_PROBABILITY: "0"
+  MAX_FAILURES: "5"
+
+---
+# API Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cosmos-api
+  namespace: default
+  labels:
+    app: cosmos-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cosmos-api
+  template:
+    metadata:
+      labels:
+        app: cosmos-api
+    spec:
+      containers:
+      - name: api
+        image: eyuel21/cosmos-api:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5000
+          name: http
+        envFrom:
+        - configMapRef:
+            name: cosmos-api-config
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 5
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: api-storage
+          mountPath: /app/data
+      volumes:
+      - name: api-storage
+        persistentVolumeClaim:
+          claimName: cosmos-api-pvc
+
+---
+# API Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: cosmos-api
+  namespace: default
+  labels:
+    app: cosmos-api
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5000
+    targetPort: 5000
+    protocol: TCP
+    name: http
+  selector:
+    app: cosmos-api

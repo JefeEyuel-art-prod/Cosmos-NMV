@@ -1,0 +1,77 @@
+---
+# ConfigMap for Frontend environment variables
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cosmos-frontend-config
+  namespace: default
+data:
+  VITE_API_URL: "http://cosmos-api:5000/api"
+
+---
+# Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cosmos-frontend
+  namespace: default
+  labels:
+    app: cosmos-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cosmos-frontend
+  template:
+    metadata:
+      labels:
+        app: cosmos-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: eyuel21/cosmos-frontend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5173
+          name: http
+        envFrom:
+        - configMapRef:
+            name: cosmos-frontend-config
+        livenessProbe:
+          tcpSocket:
+            port: 5173
+          initialDelaySeconds: 15
+          periodSeconds: 30
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: frontend-cache
+          mountPath: /var/cache/nginx
+      volumes:
+      - name: frontend-cache
+        persistentVolumeClaim:
+          claimName: cosmos-frontend-pvc
+
+---
+# Frontend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: cosmos-frontend
+  namespace: default
+  labels:
+    app: cosmos-frontend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5173
+    targetPort: 5173
+    protocol: TCP
+    name: http
+  selector:
+    app: cosmos-frontend
