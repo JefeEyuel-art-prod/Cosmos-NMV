@@ -40,8 +40,10 @@ spec:
         livenessProbe:
           tcpSocket:
             port: 5173
-          initialDelaySeconds: 15
+          initialDelaySeconds: 30
           periodSeconds: 30
+          failureThreshold: 3 
+
         resources:
           requests:
             memory: "256Mi"
