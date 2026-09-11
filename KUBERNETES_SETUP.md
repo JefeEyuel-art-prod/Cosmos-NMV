@@ -3,6 +3,7 @@
 ## 🎯 Overview
 
 This guide covers the complete setup of **Cosmos App** on Kubernetes with:
+
 - ✅ GitHub Actions CI/CD (auto-build & push Docker images)
 - ✅ Kubernetes Deployments (API + Frontend)
 - ✅ Horizontal Pod Autoscaling (HPA)
@@ -21,6 +22,7 @@ This guide covers the complete setup of **Cosmos App** on Kubernetes with:
 - Docker Hub account (for image registry)
 
 **Verify setup:**
+
 ```powershell
 docker --version
 kubectl version --client
@@ -33,23 +35,26 @@ git --version
 
 ### 1.1 Add Docker Hub Credentials to GitHub Secrets
 
-1. Go to: https://github.com/JefeEyuel-art-prod/Cosmos-NMV/settings/secrets/actions
+1. Go to: <https://github.com/JefeEyuel-art-prod/Cosmos-NMV/settings/secrets/actions>
 2. Click **New repository secret** → Add these two:
 
 **Secret 1:**
+
 ```
 Name: DOCKER_USERNAME
 Value: eyuel21
 ```
 
 **Secret 2:**
+
 ```
 Name: DOCKER_PASSWORD
 Value: [Your Docker Hub Personal Access Token]
 ```
 
 **How to get Docker Hub token:**
-1. Go to: https://hub.docker.com/settings/security
+
+1. Go to: <https://hub.docker.com/settings/security>
 2. Click **New Access Token**
 3. Give it a name: `github-actions`
 4. Select scope: `Read, Write & Delete`
@@ -60,20 +65,24 @@ Value: [Your Docker Hub Personal Access Token]
 **Location:** `.github/workflows/build.yml`
 
 **Triggers on:**
+
 - Push to `main` or `develop` branches
 - Changes to `cosmos-app/` or `backend/` directories
 
 **Jobs:**
+
 1. **build-api**: Builds Node.js backend image
 2. **build-frontend**: Builds Vite frontend image (nginx)
 3. **deploy-k8s**: (Optional) Updates K8s deployments with new images
 
 **Image tags created:**
+
 - `eyuel21/cosmos-api:latest` (always latest build)
 - `eyuel21/cosmos-api:<git-sha>` (version-specific tag)
 - Same for `cosmos-frontend`
 
 **Test it:**
+
 ```powershell
 # Make a commit to main
 git add .
@@ -122,6 +131,7 @@ git push
 ### 2.2 Deploy to Kubernetes
 
 **Step 1: Apply Storage (PersistentVolumes & Claims)**
+
 ```powershell
 kubectl apply -f k8s-storage.yaml
 
@@ -131,6 +141,7 @@ kubectl get pvc
 ```
 
 **Step 2: Apply API Deployment**
+
 ```powershell
 kubectl apply -f k8s-api-deployment.yaml
 
@@ -141,6 +152,7 @@ kubectl logs -f deployment/cosmos-api
 ```
 
 **Step 3: Apply Frontend Deployment**
+
 ```powershell
 kubectl apply -f k8s-frontend-deployment.yaml
 
@@ -151,6 +163,7 @@ kubectl logs -f deployment/cosmos-frontend
 ```
 
 **Step 4: Apply Horizontal Pod Autoscaler (HPA)**
+
 ```powershell
 kubectl apply -f k8s-hpa.yaml
 
@@ -160,6 +173,7 @@ kubectl describe hpa cosmos-api-hpa
 ```
 
 **Step 5: Apply Ingress (Optional - for external traffic)**
+
 ```powershell
 kubectl apply -f k8s-ingress.yaml
 
@@ -244,6 +258,7 @@ for ($i = 0; $i -lt 100; $i++) {
 ### 4.1 k8s-api-deployment.yaml
 
 **Contains:**
+
 - `ConfigMap`: Environment variables (NODE_ENV, PORT, etc.)
 - `Deployment`: 1 replica (can scale to 5 via HPA)
   - Image: `eyuel21/cosmos-api:latest`
@@ -256,6 +271,7 @@ for ($i = 0; $i -lt 100; $i++) {
 ### 4.2 k8s-frontend-deployment.yaml
 
 **Contains:**
+
 - `ConfigMap`: VITE_API_URL pointing to API service
 - `Deployment`: 1 replica (can scale to 4 via HPA)
   - Image: `eyuel21/cosmos-frontend:latest` (Nginx)
@@ -268,6 +284,7 @@ for ($i = 0; $i -lt 100; $i++) {
 ### 4.3 k8s-storage.yaml
 
 **Contains:**
+
 - `StorageClass`: `cosmos-storage` (no-provisioner for local testing)
 - `PersistentVolume`: `cosmos-api-pv` (5Gi, hostPath: `/data/cosmos-api`)
 - `PersistentVolumeClaim`: `cosmos-api-pvc` (requests 5Gi)
@@ -275,6 +292,7 @@ for ($i = 0; $i -lt 100; $i++) {
 - `PersistentVolumeClaim`: `cosmos-frontend-pvc` (requests 2Gi)
 
 **Note:** `hostPath` is for local testing only. For production:
+
 - **AWS**: Use EBS volumes (change provisioner to `ebs.csi.aws.com`)
 - **Azure**: Use Azure Disks (change provisioner to `disk.csi.azure.com`)
 - **GCP**: Use Persistent Disks (change provisioner to `pd.csi.storage.gke.io`)
@@ -282,6 +300,7 @@ for ($i = 0; $i -lt 100; $i++) {
 ### 4.4 k8s-hpa.yaml
 
 **Contains:**
+
 - `HorizontalPodAutoscaler` for `cosmos-api`:
   - Min: 2 replicas, Max: 5 replicas
   - Targets: 70% CPU, 80% memory utilization
@@ -296,12 +315,14 @@ for ($i = 0; $i -lt 100; $i++) {
 ### 4.5 k8s-ingress.yaml
 
 **Contains:**
+
 - `Ingress` routing rules:
   - `/api/*` → `cosmos-api:5000`
   - `/` → `cosmos-frontend:5173`
   - Host: `cosmos.local` (change to your domain)
 
 **Note:** Requires nginx-ingress-controller. Install with:
+
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.8.1/deploy/static/provider/cloud/deploy.yaml
 ```
@@ -315,6 +336,7 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/cont
 **Cause:** Application crashes or liveness probe fails too quickly
 
 **Solution:**
+
 ```powershell
 # Check logs
 kubectl logs deployment/cosmos-frontend
@@ -332,6 +354,7 @@ kubectl describe pod <pod-name>
 **Cause:** Metrics Server not installed
 
 **Solution:**
+
 ```bash
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 
@@ -344,6 +367,7 @@ kubectl get hpa
 **Cause:** PVC and PV mismatch (storage class, access mode, size)
 
 **Solution:**
+
 ```powershell
 # Check PV and PVC status
 kubectl get pv
@@ -363,6 +387,7 @@ mkdir -p C:\data\cosmos-frontend
 **Cause:** Image doesn't exist on Docker Hub or auth failed
 
 **Solution:**
+
 ```powershell
 # Verify image exists
 docker pull eyuel21/cosmos-api:latest
@@ -381,6 +406,7 @@ kubectl rollout restart deployment/cosmos-api
 **Cause:** Port-forward not active or service not found
 
 **Solution:**
+
 ```powershell
 # List services
 kubectl get svc
@@ -416,6 +442,7 @@ kubectl port-forward svc/cosmos-api 5000:5000 &
 ### 7.1 Multi-Environment Deployment
 
 **Directory structure:**
+
 ```
 k8s/
 ├── base/
@@ -435,6 +462,7 @@ k8s/
 ```
 
 **Deploy with Kustomize:**
+
 ```bash
 kubectl apply -k k8s/overlays/production
 ```
@@ -442,6 +470,7 @@ kubectl apply -k k8s/overlays/production
 ### 7.2 Helm Chart
 
 **Create Helm chart for reusability:**
+
 ```bash
 helm create cosmos-app
 # Edit values.yaml with image, replicas, etc.
@@ -451,6 +480,7 @@ helm create cosmos-app
 ### 7.3 GitOps with ArgoCD
 
 **Automatic sync from Git:**
+
 ```bash
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 # ArgoCD watches your repo and auto-applies changes
@@ -499,10 +529,10 @@ kubectl api-resources
 
 ## 📞 Support & Resources
 
-- **Kubernetes Docs**: https://kubernetes.io/docs/
-- **Docker Documentation**: https://docs.docker.com/
-- **GitHub Actions**: https://docs.github.com/en/actions
-- **kubectl Cheat Sheet**: https://kubernetes.io/docs/reference/kubectl/cheatsheet/
+- **Kubernetes Docs**: <https://kubernetes.io/docs/>
+- **Docker Documentation**: <https://docs.docker.com/>
+- **GitHub Actions**: <https://docs.github.com/en/actions>
+- **kubectl Cheat Sheet**: <https://kubernetes.io/docs/reference/kubectl/cheatsheet/>
 
 ---
 

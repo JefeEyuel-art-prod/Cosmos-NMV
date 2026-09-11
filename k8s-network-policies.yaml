@@ -1,0 +1,154 @@
+---
+# Network Policies - Restrict traffic between pods
+# Allow Frontend to reach all microservices
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-services
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: transits
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: cosmos-frontend
+    ports:
+    - protocol: TCP
+      port: 8001
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-tarot
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: tarot
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: cosmos-frontend
+    ports:
+    - protocol: TCP
+      port: 8002
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-events
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: events
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: cosmos-frontend
+    ports:
+    - protocol: TCP
+      port: 8003
+
+---
+# Allow Istio IngressGateway to reach all services
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-services
+  namespace: default
+spec:
+  podSelector:
+    matchLabels: {}
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: istio-system
+    - podSelector:
+        matchLabels:
+          app: cosmos-frontend
+
+---
+# Allow DNS queries
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: default
+spec:
+  podSelector:
+    matchLabels: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  - to:
+    - podSelector:
+        matchLabels:
+          app: transits
+    ports:
+    - protocol: TCP
+      port: 8001
+  - to:
+    - podSelector:
+        matchLabels:
+          app: tarot
+    ports:
+    - protocol: TCP
+      port: 8002
+  - to:
+    - podSelector:
+        matchLabels:
+          app: events
+    ports:
+    - protocol: TCP
+      port: 8003
+
+---
+# Allow microservices to reach each other (service-to-service communication)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-service-communication
+  namespace: default
+spec:
+  podSelector:
+    matchLabels: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector: {}
+  egress:
+  - to:
+    - podSelector: {}
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53

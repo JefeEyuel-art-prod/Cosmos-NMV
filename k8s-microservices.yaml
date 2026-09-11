@@ -1,0 +1,251 @@
+---
+# Transits Microservice
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: transits-config
+  namespace: default
+data:
+  PORT: "8001"
+  SERVICE_NAME: "transits"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: transits-service
+  namespace: default
+  labels:
+    app: transits
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: transits
+  template:
+    metadata:
+      labels:
+        app: transits
+        version: v1
+    spec:
+      containers:
+      - name: transits
+        image: eyuel21/cosmos-api:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8001
+          name: http
+        env:
+        - name: PORT
+          value: "8001"
+        - name: NODE_ENV
+          value: "production"
+        envFrom:
+        - configMapRef:
+            name: transits-config
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 8001
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 8001
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: transits
+  namespace: default
+  labels:
+    app: transits
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8001
+    targetPort: 8001
+    protocol: TCP
+    name: http
+  selector:
+    app: transits
+
+---
+# Tarot Microservice
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tarot-config
+  namespace: default
+data:
+  PORT: "8002"
+  SERVICE_NAME: "tarot"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tarot-service
+  namespace: default
+  labels:
+    app: tarot
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tarot
+  template:
+    metadata:
+      labels:
+        app: tarot
+        version: v1
+    spec:
+      containers:
+      - name: tarot
+        image: eyuel21/cosmos-api:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8002
+          name: http
+        env:
+        - name: PORT
+          value: "8002"
+        - name: NODE_ENV
+          value: "production"
+        envFrom:
+        - configMapRef:
+            name: tarot-config
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 8002
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 8002
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tarot
+  namespace: default
+  labels:
+    app: tarot
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8002
+    targetPort: 8002
+    protocol: TCP
+    name: http
+  selector:
+    app: tarot
+
+---
+# Events Microservice
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: events-config
+  namespace: default
+data:
+  PORT: "8003"
+  SERVICE_NAME: "events"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: events-service
+  namespace: default
+  labels:
+    app: events
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: events
+  template:
+    metadata:
+      labels:
+        app: events
+        version: v1
+    spec:
+      containers:
+      - name: events
+        image: eyuel21/cosmos-api:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8003
+          name: http
+        env:
+        - name: PORT
+          value: "8003"
+        - name: NODE_ENV
+          value: "production"
+        envFrom:
+        - configMapRef:
+            name: events-config
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 8003
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 8003
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: events
+  namespace: default
+  labels:
+    app: events
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8003
+    targetPort: 8003
+    protocol: TCP
+    name: http
+  selector:
+    app: events

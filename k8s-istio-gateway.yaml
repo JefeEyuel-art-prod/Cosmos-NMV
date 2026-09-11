@@ -1,0 +1,211 @@
+---
+# Istio Ingress Gateway - API Gateway for all microservices
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: cosmos-gateway
+  namespace: default
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "cosmos.local"
+    - "*"
+
+---
+# Virtual Service for Transits Microservice
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: transits
+  namespace: default
+spec:
+  hosts:
+  - "transits"
+  - "cosmos.local"
+  gateways:
+  - cosmos-gateway
+  http:
+  - match:
+    - uri:
+        prefix: "/api/transits"
+    route:
+    - destination:
+        host: transits
+        port:
+          number: 8001
+      weight: 100
+    timeout: 10s
+    retries:
+      attempts: 3
+      perTryTimeout: 2s
+
+---
+# Virtual Service for Tarot Microservice
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: tarot
+  namespace: default
+spec:
+  hosts:
+  - "tarot"
+  - "cosmos.local"
+  gateways:
+  - cosmos-gateway
+  http:
+  - match:
+    - uri:
+        prefix: "/api/tarot"
+    route:
+    - destination:
+        host: tarot
+        port:
+          number: 8002
+      weight: 100
+    timeout: 10s
+    retries:
+      attempts: 3
+      perTryTimeout: 2s
+
+---
+# Virtual Service for Events Microservice
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: events
+  namespace: default
+spec:
+  hosts:
+  - "events"
+  - "cosmos.local"
+  gateways:
+  - cosmos-gateway
+  http:
+  - match:
+    - uri:
+        prefix: "/api/events"
+    route:
+    - destination:
+        host: events
+        port:
+          number: 8003
+      weight: 100
+    timeout: 10s
+    retries:
+      attempts: 3
+      perTryTimeout: 2s
+
+---
+# Virtual Service for Frontend
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: frontend
+  namespace: default
+spec:
+  hosts:
+  - "cosmos.local"
+  - "*"
+  gateways:
+  - cosmos-gateway
+  http:
+  - match:
+    - uri:
+        prefix: "/"
+    route:
+    - destination:
+        host: cosmos-frontend
+        port:
+          number: 5173
+      weight: 100
+
+---
+# Destination Rules for load balancing & connection pooling
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: transits
+  namespace: default
+spec:
+  host: transits
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http1MaxPendingRequests: 100
+        maxRequestsPerConnection: 2
+    loadBalancer:
+      simple: ROUND_ROBIN
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: tarot
+  namespace: default
+spec:
+  host: tarot
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http1MaxPendingRequests: 100
+        maxRequestsPerConnection: 2
+    loadBalancer:
+      simple: ROUND_ROBIN
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: events
+  namespace: default
+spec:
+  host: events
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http1MaxPendingRequests: 100
+        maxRequestsPerConnection: 2
+    loadBalancer:
+      simple: ROUND_ROBIN
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: cosmos-frontend
+  namespace: default
+spec:
+  host: cosmos-frontend
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http1MaxPendingRequests: 100
+        maxRequestsPerConnection: 2
+    loadBalancer:
+      simple: ROUND_ROBIN
