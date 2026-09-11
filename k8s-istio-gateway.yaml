@@ -15,7 +15,7 @@ spec:
       protocol: HTTP
     hosts:
     - "cosmos.local"
-    - "*"
+    - "*.cosmos.local"
 
 ---
 # Virtual Service for Transits Microservice
@@ -26,8 +26,7 @@ metadata:
   namespace: default
 spec:
   hosts:
-  - "transits"
-  - "cosmos.local"
+  - "transits.cosmos.local"
   gateways:
   - cosmos-gateway
   http:
@@ -54,8 +53,7 @@ metadata:
   namespace: default
 spec:
   hosts:
-  - "tarot"
-  - "cosmos.local"
+  - "tarot.cosmos.local"
   gateways:
   - cosmos-gateway
   http:
@@ -82,8 +80,7 @@ metadata:
   namespace: default
 spec:
   hosts:
-  - "events"
-  - "cosmos.local"
+  - "events.cosmos.local"
   gateways:
   - cosmos-gateway
   http:
@@ -102,23 +99,19 @@ spec:
       perTryTimeout: 2s
 
 ---
-# Virtual Service for Frontend
+# Virtual Service for Frontend (catch-all)
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
 metadata:
-  name: frontend
+  name: frontend-vs
   namespace: default
 spec:
   hosts:
   - "cosmos.local"
-  - "*"
   gateways:
   - cosmos-gateway
   http:
-  - match:
-    - uri:
-        prefix: "/"
-    route:
+  - route:
     - destination:
         host: cosmos-frontend
         port:
