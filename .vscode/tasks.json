@@ -1,0 +1,46 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "docker-build",
+			"label": "docker-build",
+			"platform": "node",
+			"dockerBuild": {
+				"dockerfile": "${workspaceFolder}/cosmos-app/node_modules/baseline-browser-mapping/Dockerfile",
+				"context": "${workspaceFolder}/cosmos-app/node_modules/baseline-browser-mapping",
+				"pull": true
+			},
+			"node": {
+				"package": "${workspaceFolder}/cosmos-app/node_modules/baseline-browser-mapping/package.json"
+			}
+		},
+		{
+			"type": "docker-run",
+			"label": "docker-run: release",
+			"dependsOn": [
+				"docker-build"
+			],
+			"platform": "node",
+			"node": {
+				"package": "${workspaceFolder}/cosmos-app/node_modules/baseline-browser-mapping/package.json"
+			}
+		},
+		{
+			"type": "docker-run",
+			"label": "docker-run: debug",
+			"dependsOn": [
+				"docker-build"
+			],
+			"dockerRun": {
+				"env": {
+					"DEBUG": "*",
+					"NODE_ENV": "development"
+				}
+			},
+			"node": {
+				"package": "${workspaceFolder}/cosmos-app/node_modules/baseline-browser-mapping/package.json",
+				"enableDebugging": true
+			}
+		}
+	]
+}

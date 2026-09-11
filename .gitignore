@@ -1,0 +1,5 @@
+vscode-server-linux-x64/
+node_modules/
+dist/
+.env
+*.log
