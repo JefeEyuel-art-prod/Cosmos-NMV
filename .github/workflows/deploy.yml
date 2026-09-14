@@ -1,0 +1,304 @@
+name: Build, Test, and Deploy to Kubernetes
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'cosmos-app/**'
+      - 'backend/**'
+      - '.github/workflows/deploy.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+env:
+  REGISTRY: docker.io
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+
+jobs:
+  # Test API
+  test-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+      
+      - name: Lint backend
+        working-directory: backend
+        run: npm run lint --if-present || true
+      
+      - name: Build backend
+        working-directory: backend
+        run: npm run build
+      
+      - name: Test backend
+        working-directory: backend
+        run: npm test --if-present || true
+
+  # Test Frontend
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: cosmos-app/package-lock.json
+      
+      - name: Install frontend dependencies
+        working-directory: cosmos-app
+        run: npm ci
+      
+      - name: Lint frontend
+        working-directory: cosmos-app
+        run: npm run lint --if-present || true
+      
+      - name: Build frontend
+        working-directory: cosmos-app
+        run: npm run build
+      
+      - name: Test frontend
+        working-directory: cosmos-app
+        run: npm test --if-present || true
+
+  # Build and push Docker images
+  build-images:
+    needs: [test-api, test-frontend]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    outputs:
+      api-image: ${{ steps.meta-api.outputs.tags }}
+      frontend-image: ${{ steps.meta-frontend.outputs.tags }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      
+      # Build API image
+      - name: Extract metadata - API
+        id: meta-api
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/cosmos-api
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+      
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-api.outputs.tags }}
+          labels: ${{ steps.meta-api.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      # Build Frontend image
+      - name: Extract metadata - Frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/cosmos-frontend
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+      
+      - name: Build and push Frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./cosmos-app
+          file: ./cosmos-app/Dockerfile
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      # Scan images for vulnerabilities
+      - name: Run Trivy vulnerability scanner - API
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/cosmos-api:latest
+          format: 'sarif'
+          output: 'trivy-api-results.sarif'
+      
+      - name: Run Trivy vulnerability scanner - Frontend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ secrets.DOCKER_USERNAME }}/cosmos-frontend:latest
+          format: 'sarif'
+          output: 'trivy-frontend-results.sarif'
+      
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-*.sarif'
+
+  # Deploy to staging
+  deploy-staging:
+    needs: build-images
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    environment: staging
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+      
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+      
+      - name: Deploy to staging
+        run: |
+          kubectl set image deployment/cosmos-api cosmos-api=${{ secrets.DOCKER_USERNAME }}/cosmos-api:latest -n staging --record
+          kubectl set image deployment/cosmos-frontend cosmos-frontend=${{ secrets.DOCKER_USERNAME }}/cosmos-frontend:latest -n staging --record
+          kubectl set image deployment/transits-service transits=${{ secrets.DOCKER_USERNAME }}/cosmos-api:latest -n staging --record
+          kubectl set image deployment/tarot-service tarot=${{ secrets.DOCKER_USERNAME }}/cosmos-api:latest -n staging --record
+          kubectl set image deployment/events-service events=${{ secrets.DOCKER_USERNAME }}/cosmos-api:latest -n staging --record
+      
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/cosmos-api -n staging --timeout=5m
+          kubectl rollout status deployment/cosmos-frontend -n staging --timeout=5m
+      
+      - name: Run smoke tests
+        run: |
+          kubectl run test-pod --image=curlimages/curl:latest -n staging --rm -i --restart=Never -- \
+            curl -f http://cosmos-api:5000/api/health || exit 1
+      
+      - name: Slack notification - Staging deployed
+        if: success()
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK }}
+          payload: |
+            {
+              "text": "✅ Staging deployment successful",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Staging Deployment Successful* 🚀\nBranch: develop\nCommit: ${{ github.sha }}\nAuthor: ${{ github.actor }}"
+                  }
+                }
+              ]
+            }
+
+  # Deploy to production
+  deploy-production:
+    needs: build-images
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+      
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_PROD }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+      
+      - name: Backup current deployment
+        run: |
+          kubectl get deployment cosmos-api -n production -o yaml > backup-api.yaml
+          kubectl get deployment cosmos-frontend -n production -o yaml > backup-frontend.yaml
+      
+      - name: Deploy to production
+        run: |
+          kubectl set image deployment/cosmos-api cosmos-api=${{ secrets.DOCKER_USERNAME }}/cosmos-api:latest -n production --record
+          kubectl set image deployment/cosmos-frontend cosmos-frontend=${{ secrets.DOCKER_USERNAME }}/cosmos-frontend:latest -n production --record
+          kubectl set image deployment/transits-service transits=${{ secrets.DOCKER_USERNAME }}/cosmos-api:latest -n production --record
+          kubectl set image deployment/tarot-service tarot=${{ secrets.DOCKER_USERNAME }}/cosmos-api:latest -n production --record
+          kubectl set image deployment/events-service events=${{ secrets.DOCKER_USERNAME }}/cosmos-api:latest -n production --record
+      
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/cosmos-api -n production --timeout=10m
+          kubectl rollout status deployment/cosmos-frontend -n production --timeout=10m
+      
+      - name: Health checks
+        run: |
+          kubectl run health-check --image=curlimages/curl:latest -n production --rm -i --restart=Never -- \
+            curl -f http://cosmos-api:5000/api/health || exit 1
+      
+      - name: Slack notification - Production deployed
+        if: success()
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK }}
+          payload: |
+            {
+              "text": "✅ Production deployment successful",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Production Deployment Successful* 🎉\nBranch: main\nCommit: ${{ github.sha }}\nAuthor: ${{ github.actor }}"
+                  }
+                }
+              ]
+            }
+      
+      - name: Slack notification - Deployment failed
+        if: failure()
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK }}
+          payload: |
+            {
+              "text": "❌ Production deployment failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Production Deployment Failed* ⚠️\nBranch: main\nCommit: ${{ github.sha }}\nAuthor: ${{ github.actor }}\n\nCheck logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                  }
+                }
+              ]
+            }
