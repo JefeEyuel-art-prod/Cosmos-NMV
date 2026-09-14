@@ -60,7 +60,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./cosmos-app
-          file: ./cosmos-app/Dockerfile
+          dockerfile: ./cosmos-app/Dockerfile
           push: true
           tags: |
             eyuel21/cosmos-frontend:latest
